@@ -1,26 +1,38 @@
 import { useState } from "react";
 import server from "./server";
+import { Crypto } from "./utils/Crypto";
 
-function Transfer({ address, setBalance }) {
+function Transfer({ address, setBalance, privateKey }) {
   const [sendAmount, setSendAmount] = useState("");
   const [recipient, setRecipient] = useState("");
+  const crypto = new Crypto();
+
 
   const setValue = (setter) => (evt) => setter(evt.target.value);
 
   async function transfer(evt) {
     evt.preventDefault();
 
+    if (privateKey.length === 0) {
+      window.alert("You need the private key to sign the transaction")
+    }
+
     try {
-      const {
-        data: { balance },
-      } = await server.post(`send`, {
-        sender: address,
-        amount: parseInt(sendAmount),
-        recipient,
-      });
-      setBalance(balance);
-    } catch (ex) {
-      alert(ex.response.data.message);
+      const [signature, rBit] = await crypto.signMessage(sendAmount, privateKey)
+
+      if (signature) {
+        const { data } = await server.post(`send`, {
+          sender: address,
+          amount: parseInt(sendAmount),
+          recipient,
+          signature,
+          rBit
+        });
+
+        if (data.balance) setBalance(data.balance);
+      }
+    } catch ({ response }) {
+      if (response.request.status === 401) window.alert("You are not authorized to execute the transaction")
     }
   }
 
